@@ -31,8 +31,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 class RadioView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        # Dicționar pentru a salva timpul ultimei apăsări pentru fiecare utilizator
         self.cooldowns = {}
+        # Variabilă pentru a memora ultimul mesaj cu frecvența
+        self.last_message = None
 
     @discord.ui.button(
         label="Scanare Frecvență 📡", 
@@ -43,36 +44,36 @@ class RadioView(discord.ui.View):
         user_id = interaction.user.id
         now = asyncio.get_event_loop().time()
         
-        # Verificăm dacă utilizatorul este în cooldown (30 secunde)
+        # Cooldown 30 secunde
         if user_id in self.cooldowns and now - self.cooldowns[user_id] < 30:
             retry_after = int(30 - (now - self.cooldowns[user_id]))
             return await interaction.response.send_message(
-                f"⚠️ **Sistem supraîncălzit!** Reîncercare posibilă în `{retry_after}s`.", 
+                f"⚠️ **Sistem supraîncălzit!** Reîncercare în `{retry_after}s`.", 
                 ephemeral=True
             )
 
-        # Actualizăm timpul pentru cooldown
+        # Ștergem mesajul anterior dacă acesta există
+        if self.last_message:
+            try:
+                await self.last_message.delete()
+            except:
+                # Mesajul a fost probabil șters manual sau nu mai există
+                pass
+
         self.cooldowns[user_id] = now
         
-        # Generăm frecvența
         abc = random.randint(100, 999)
         de = random.randint(0, 99)
         frecventa = f"{abc}.{de:02d}"
         
-        # Trimitem mesajul public
+        # Trimitem noua frecvență
         await interaction.response.send_message(
-            f"📟 **Sistem:** Frecvență interceptată pe **{frecventa} MHz**\n*(Acest mesaj se va auto-distruge în 2 minute)*", 
+            f"📟 **Sistem:** Frecvență interceptată pe **{frecventa} MHz**\n*(Acest mesaj va fi înlocuit la următoarea scanare)*", 
             ephemeral=False 
         )
         
-        # Gestionăm auto-ștergerea (2 minute)
-        msg = await interaction.original_response()
-        await asyncio.sleep(120)
-        
-        try:
-            await msg.delete()
-        except:
-            pass
+        # Salvăm acest mesaj ca fiind cel mai nou
+        self.last_message = await interaction.original_response()
 
 @bot.event
 async def on_ready():
@@ -86,7 +87,7 @@ async def radio(ctx):
         description="Apasă butonul de mai jos pentru a genera o frecvență aleatorie.",
         color=0x2ecc71
     )
-    embed.add_field(name="🛡️ Securitate", value="Auto-distrugere: 120s", inline=True)
+    embed.add_field(name="🛡️ Mod Operare", value="O singură frecvență activă", inline=True)
     embed.add_field(name="⏳ Cooldown", value="30s per utilizator", inline=True)
     embed.set_footer(text="Velkaris Network System")
     
