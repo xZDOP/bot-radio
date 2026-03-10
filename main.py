@@ -2,10 +2,11 @@ import discord
 from discord.ext import commands
 import random
 import os
+import asyncio
 from flask import Flask
 from threading import Thread
 
-# --- 1. SERVER WEB (Pentru a menține botul activ pe Render) ---
+# --- SERVER WEB (Keep-Alive) ---
 app = Flask('')
 
 @app.route('/')
@@ -13,8 +14,7 @@ def home():
     return "Statia Radio este Online!"
 
 def run():
-    # Render folosește variabila PORT pentru serviciile web
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
@@ -22,72 +22,80 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-# --- 2. LOGICA BOTULUI DISCORD ---
+# --- LOGICA BOTULUI ---
 intents = discord.Intents.default()
-intents.message_content = True  # Necesar pentru a citi comanda !radio
+intents.message_content = True 
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Definim interfața cu buton
 class RadioView(discord.ui.View):
     def __init__(self):
-        # timeout=None asigură că butonul nu expiră după câteva minute
         super().__init__(timeout=None)
+        # Dicționar pentru a salva timpul ultimei apăsări pentru fiecare utilizator
+        self.cooldowns = {}
 
     @discord.ui.button(
         label="Scanare Frecvență 📡", 
         style=discord.ButtonStyle.green, 
-        custom_id="scan_btn_unique" # ID unic pentru persistență la restart
+        custom_id="radio_scan_button_v1"
     )
     async def button_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Generăm formatul abc.de (ex: 145.05)
+        user_id = interaction.user.id
+        now = asyncio.get_event_loop().time()
+        
+        # Verificăm dacă utilizatorul este în cooldown (30 secunde)
+        if user_id in self.cooldowns and now - self.cooldowns[user_id] < 30:
+            retry_after = int(30 - (now - self.cooldowns[user_id]))
+            return await interaction.response.send_message(
+                f"⚠️ **Sistem supraîncălzit!** Reîncercare posibilă în `{retry_after}s`.", 
+                ephemeral=True
+            )
+
+        # Actualizăm timpul pentru cooldown
+        self.cooldowns[user_id] = now
+        
+        # Generăm frecvența
         abc = random.randint(100, 999)
         de = random.randint(0, 99)
-        frecventa = f"{abc}.{de:02d}" # :02d pune un 0 în față dacă cifra e mică
+        frecventa = f"{abc}.{de:02d}"
         
+        # Trimitem mesajul public
         await interaction.response.send_message(
-            f"📟 **Sistem:** Frecvență interceptată pe **{frecventa} MHz**", 
-            ephemeral=False # Mesajul este vizibil doar pentru cel care apasă
+            f"📟 **Sistem:** Frecvență interceptată pe **{frecventa} MHz**\n*(Acest mesaj se va auto-distruge în 2 minute)*", 
+            ephemeral=False 
         )
+        
+        # Gestionăm auto-ștergerea (2 minute)
+        msg = await interaction.original_response()
+        await asyncio.sleep(120)
+        
+        try:
+            await msg.delete()
+        except:
+            pass
 
 @bot.event
 async def on_ready():
-    # Înregistrăm View-ul pentru ca butoanele vechi să rămână funcționale
     bot.add_view(RadioView())
-    print(f'---')
-    print(f'✅ Autentificat ca: {bot.user.name}')
-    print(f'✅ ID Bot: {bot.user.id}')
-    print(f'🚀 Botul este gata de utilizare!')
-    print(f'---')
+    print(f'✅ Bot Online: {bot.user}')
 
 @bot.command()
 async def radio(ctx):
-    """Comanda care trimite panoul cu buton"""
     embed = discord.Embed(
         title="🛰️ Terminal Comunicații Radio",
-        description="Apasă butonul de mai jos pentru a genera o frecvență random securizată.",
-        color=0x2ecc71 # Verde smarald
+        description="Apasă butonul de mai jos pentru a genera o frecvență aleatorie.",
+        color=0x2ecc71
     )
-    embed.add_field(name="Protocol", value="Criptare AES-256", inline=True)
-    embed.add_field(name="Status", value="📡 Scaner activ", inline=True)
-    embed.set_footer(text="Sistem automat de alocare frecvențe.")
+    embed.add_field(name="🛡️ Securitate", value="Auto-distrugere: 120s", inline=True)
+    embed.add_field(name="⏳ Cooldown", value="30s per utilizator", inline=True)
+    embed.set_footer(text="Velkaris Network System")
     
     await ctx.send(embed=embed, view=RadioView())
 
-# --- 3. PORNIREA SISTEMULUI ---
 if __name__ == "__main__":
-    # Pornim serverul Flask într-un thread separat
     keep_alive()
-    
-    # Luăm Token-ul din variabilele de mediu (Environment Variables)
     token = os.environ.get('DISCORD_TOKEN')
-    
     if token:
-        try:
-            bot.run(token)
-        except discord.errors.LoginFailure:
-            print("❌ EROARE: Token-ul Discord este invalid!")
-        except Exception as e:
-            print(f"❌ A apărut o eroare la pornire: {e}")
+        bot.run(token)
     else:
-        print("❌ EROARE: Variabila 'DISCORD_TOKEN' nu a fost găsită!")
+        print("❌ EROARE: Lipsă TOKEN!")
