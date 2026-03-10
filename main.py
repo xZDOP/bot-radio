@@ -47,7 +47,7 @@ class RadioView(discord.ui.View):
         
         await interaction.response.send_message(
             f"📟 **Sistem:** Frecvență interceptată pe **{frecventa} MHz**", 
-            ephemeral=True # Mesajul este vizibil doar pentru cel care apasă
+            ephemeral=False # Mesajul este vizibil doar pentru cel care apasă
         )
 
 @bot.event
