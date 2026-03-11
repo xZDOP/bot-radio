@@ -32,7 +32,6 @@ class RadioView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.cooldowns = {}
-        # Variabilă pentru a memora ultimul mesaj cu frecvența
         self.last_message = None
 
     @discord.ui.button(
@@ -57,7 +56,6 @@ class RadioView(discord.ui.View):
             try:
                 await self.last_message.delete()
             except:
-                # Mesajul a fost probabil șters manual sau nu mai există
                 pass
 
         self.cooldowns[user_id] = now
@@ -66,11 +64,11 @@ class RadioView(discord.ui.View):
         de = random.randint(0, 99)
         frecventa = f"{abc}.{de:02d}"
         
-        # Trimitem noua frecvență
-        await interaction.response.send_message(
-            f"📟 **Sistem:** Frecvență interceptată pe **{frecventa} MHz**\n*(Acest mesaj va fi înlocuit la următoarea scanare)*", 
-            ephemeral=False 
-        )
+        # Trimitem noua frecvență cu tag @everyone
+        # Mesajul menționează utilizatorul care a scanat și dă tag la everyone
+        content = f"📢 @everyone\n📟 **Sistem:** Frecvență nouă interceptată pe **{frecventa} MHz**\n📡 *Scanare efectuată de:* {interaction.user.mention}"
+        
+        await interaction.response.send_message(content=content, ephemeral=False)
         
         # Salvăm acest mesaj ca fiind cel mai nou
         self.last_message = await interaction.original_response()
@@ -84,10 +82,10 @@ async def on_ready():
 async def radio(ctx):
     embed = discord.Embed(
         title="🛰️ Terminal Comunicații Radio",
-        description="Apasă butonul de mai jos pentru a genera o frecvență aleatorie.",
+        description="Apasă butonul de mai jos pentru a genera o frecvență aleatorie și a notifica tot personalul.",
         color=0x2ecc71
     )
-    embed.add_field(name="🛡️ Mod Operare", value="O singură frecvență activă", inline=True)
+    embed.add_field(name="🛡️ Alertă", value="Trimite notificare @everyone", inline=True)
     embed.add_field(name="⏳ Cooldown", value="30s per utilizator", inline=True)
     embed.set_footer(text="Velkaris Network System")
     
