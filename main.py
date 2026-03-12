@@ -26,7 +26,15 @@ def keep_alive():
 intents = discord.Intents.default()
 intents.message_content = True 
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+# !!! ACEASTA ESTE LINIA CRUCIALĂ !!!
+# Îi spunem botului că are voie să menționeze @everyone
+mentiuni_permise = discord.AllowedMentions(everyone=True, roles=True, users=True)
+
+bot = commands.Bot(
+    command_prefix="!", 
+    intents=intents,
+    allowed_mentions=mentiuni_permise # Aplicăm permisiunea aici
+)
 
 class RadioView(discord.ui.View):
     def __init__(self):
@@ -64,31 +72,28 @@ class RadioView(discord.ui.View):
         de = random.randint(0, 99)
         frecventa = f"{abc}.{de:02d}"
         
-        # Trimitem noua frecvență cu tag @everyone
-        # Mesajul menționează utilizatorul care a scanat și dă tag la everyone
+        # Construim mesajul cu tag activ
         content = f"📢 @everyone\n📟 **Sistem:** Frecvență nouă interceptată pe **{frecventa} MHz**\n📡 *Scanare efectuată de:* {interaction.user.mention}"
         
+        # Trimitem mesajul
         await interaction.response.send_message(content=content, ephemeral=False)
         
-        # Salvăm acest mesaj ca fiind cel mai nou
+        # Salvăm mesajul ca fiind cel mai nou
         self.last_message = await interaction.original_response()
 
 @bot.event
 async def on_ready():
     bot.add_view(RadioView())
-    print(f'✅ Bot Online: {bot.user}')
+    print(f'✅ Bot Online și pregătit pentru notificări: {bot.user}')
 
 @bot.command()
 async def radio(ctx):
     embed = discord.Embed(
         title="🛰️ Terminal Comunicații Radio",
-        description="Apasă butonul de mai jos pentru a genera o frecvență aleatorie și a notifica tot personalul.",
+        description="Apasă butonul de mai jos pentru a genera o frecvență și a notifica tot personalul.",
         color=0x2ecc71
     )
-    embed.add_field(name="🛡️ Alertă", value="Trimite notificare @everyone", inline=True)
-    embed.add_field(name="⏳ Cooldown", value="30s per utilizator", inline=True)
     embed.set_footer(text="Velkaris Network System")
-    
     await ctx.send(embed=embed, view=RadioView())
 
 if __name__ == "__main__":
